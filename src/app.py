@@ -10,6 +10,7 @@ def build_graph_with_st(st_path, ont_path, ld_path):
     add_semantic_types(sts_json, source_graph)
     ontology = read_ontology(ont_path)
     LD_graph = read_ld(ld_path)
+    extract_patterns_unitary(LD_graph)
 
     return
 
@@ -68,5 +69,12 @@ def read_ld(ld_path):
     ld_graph = rdf_graph.parse(data=rdf_text, format='turtle')
 
     return ld_graph
+
+def extract_patterns_unitary(ld_graph: rdflib.Graph):
+    qres = ld_graph.query("""SELECT DISTINCT ?c1 ?p ?c2 (COUNT(*) as ?count)
+                            WHERE { ?x ?p ?y. ?x rdf:type ?c1. ?y rdf:type ?c2. }
+                            GROUP BY ?c1 ?p ?c2""")
+    for row in qres:
+        print(row)
 
 build_graph_with_st('./data/alaskaslist_st.json', './data/ontology.ttl', './data/lod_example.rdf')
