@@ -2,6 +2,7 @@ import networkx as nx
 import json
 import rdflib
 from pattern import Pattern
+from copy import deepcopy
 import testConstants as test
 
 
@@ -105,8 +106,6 @@ def extract_patterns_unitary(ld_graph: rdflib.Graph):
     return P1
 
 # Only for test purposes
-
-
 def extract_patterns_unitary_test(ld_graph):
     P1 = []
     i = 0
@@ -125,21 +124,32 @@ def extract_ontology_classes(ontology: rdflib.Graph):
                             WHERE { ?c rdf:type rdfs:Class }""")
     return [str(res[0]) for res in qres]
 
+def ask_for_link(ld_graph: rdflib.Graph, pattern: Pattern, candidate: Pattern, ont_class: str):
+    query = "ASK WHERE { "
+    for edge in pattern.p_graph.edges.data():
+        query += f"<{edge[0]}> <{edge[2]['property']}> <{edge[1]}> ."
+    edge1 = candidate.p_graph.edges.data()
+    edge1 = list(edge1)[0]
+    new_class = [x for x in list(candidate.p_graph.nodes) if x != ont_class]
+    # TODO: new_class a volte non risulta popolato capire perchè
+    if (len(new_class) != 1):
+        print(new_class)
+    query += f"<{ont_class}> <{edge1[2]['property']}> <{new_class[0]}> ."
+    print(query)
 
 def build_longer_patterns(ld_graph, ontology, length_1_patterns, max_len: int):
     P = dict()
-    P[1] = length_1_patterns;
+    P[1] = length_1_patterns
     p_id = len(length_1_patterns)
     i = 1
     ont_classes = extract_ontology_classes(ontology)
     while (i < max_len):
-        for pattern1 in P[i]:
-            # TODO : Unique identifier for each node in the pattern graph
-            # Because there might be more than 1 classes with same URI
-            for ont_class in [c for c in list(pattern1.p_graph.nodes) if ont_classes.count(c) == 1]:
+        for pattern in P[i]:
+            for ont_class in [c for c in list(pattern.p_graph.nodes) if ont_classes.count(c) == 1]:
                 P1_c = [p for p in length_1_patterns if p.p_graph.has_node(ont_class)]
                 for p1_c in P1_c:
-                    pass
+                    ask_for_link(ld_graph, pattern, p1_c, ont_class)
+
 
 
 build_graph_with_st('./data/alaskaslist_st.json',
