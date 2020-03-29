@@ -132,33 +132,33 @@ ASK WHERE { """
     i = 0
 
     # Build a node<->variable_name association for query variables
-    node_var__ = list()
+    node_var_index = list()
     props = list()
     
     # Build query for old pattern
     for edge in pattern.p_graph.edges.data():
-        if edge[0] not in node_var__:
-            node_var__.append(edge[0])
-        i1 = node_var__.index(edge[0])
-        query += f"\t?c{i1} rdf:type <{edge[0]}> .\n"
-        if edge[1] not in node_var__:
-            node_var__.append(edge[1])
-        i2 = node_var__.index(edge[1])
-        query += f"\t?c{i2} rdf:type <{edge[1]}> .\n"
+        if edge[0] not in node_var_index:
+            node_var_index.append(edge[0])
+            i1 = node_var_index.index(edge[0])
+            query += f"\t?c{i1} rdf:type <{edge[0]}> .\n"
+        if edge[1] not in node_var_index:
+            node_var_index.append(edge[1])
+            i2 = node_var_index.index(edge[1])
+            query += f"\t?c{i2} rdf:type <{edge[1]}> .\n"
         prop = f"\t?c{i1} <{edge[2]['property']}> ?c{i2} .\n"
         props.append(prop) # This will be used later to avoid duplicate queries
         query += prop
         
     # Add to query the new part of the pattern to test
     new_edge = list(candidate.p_graph.edges.data())[0]
-    if new_edge[0] not in node_var__:
-        node_var__.append(new_edge[0])
-    i1 = node_var__.index(new_edge[0])
-    query += f"\t?c{i1} rdf:type <{new_edge[0]}> .\n"
-    if new_edge[1] not in node_var__:
-        node_var__.append(new_edge[1])
-    i2 = node_var__.index(new_edge[1])
-    query += f"\t?c{i2} rdf:type <{new_edge[1]}> .\n"
+    if new_edge[0] not in node_var_index:
+        node_var_index.append(new_edge[0])
+        i1 = node_var_index.index(new_edge[0])
+        query += f"\t?c{i1} rdf:type <{new_edge[0]}> .\n"
+    if new_edge[1] not in node_var_index:
+        node_var_index.append(new_edge[1])
+        i2 = node_var_index.index(new_edge[1])
+        query += f"\t?c{i2} rdf:type <{new_edge[1]}> .\n"
     prop = f"\t?c{i1} <{new_edge[2]['property']}> ?c{i2} .\n"
     # Check if the same property has been added elsewhere in the query (see comment above)
     if prop in props:
