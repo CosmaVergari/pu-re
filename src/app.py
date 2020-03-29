@@ -120,22 +120,57 @@ def extract_patterns_unitary_test(ld_graph):
     return P1
 
 def extract_ontology_classes(ontology: rdflib.Graph):
-    qres = ontology.query("""SELECT ?c
-                            WHERE { ?c rdf:type rdfs:Class }""")
+    qres = ontology.query("""PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?c
+    WHERE { ?c rdf:type rdfs:Class }""")
     return [str(res[0]) for res in qres]
 
 def ask_for_link(ld_graph: rdflib.Graph, pattern: Pattern, candidate: Pattern, ont_class: str):
-    query = "ASK WHERE { "
+    query = """PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+ASK WHERE { """
+    i = 0
+
+    # Build a node<->variable_name association for query variables
+    node_var__ = list()
+    props = list()
+    
+    # Build query for old pattern
     for edge in pattern.p_graph.edges.data():
-        query += f"<{edge[0]}> <{edge[2]['property']}> <{edge[1]}> ."
-    edge1 = candidate.p_graph.edges.data()
-    edge1 = list(edge1)[0]
-    new_class = [x for x in list(candidate.p_graph.nodes) if x != ont_class]
-    # TODO: new_class a volte non risulta popolato capire perchè
-    if (len(new_class) != 1):
-        print(new_class)
-    query += f"<{ont_class}> <{edge1[2]['property']}> <{new_class[0]}> ."
+        if edge[0] not in node_var__:
+            node_var__.append(edge[0])
+        i1 = node_var__.index(edge[0])
+        query += f"\t?c{i1} rdf:type <{edge[0]}> .\n"
+        if edge[1] not in node_var__:
+            node_var__.append(edge[1])
+        i2 = node_var__.index(edge[1])
+        query += f"\t?c{i2} rdf:type <{edge[1]}> .\n"
+        prop = f"\t?c{i1} <{edge[2]['property']}> ?c{i2} .\n"
+        props.append(prop) # This will be used later to avoid duplicate queries
+        query += prop
+        
+    # Add to query the new part of the pattern to test
+    new_edge = list(candidate.p_graph.edges.data())[0]
+    if new_edge[0] not in node_var__:
+        node_var__.append(new_edge[0])
+    i1 = node_var__.index(new_edge[0])
+    query += f"\t?c{i1} rdf:type <{new_edge[0]}> .\n"
+    if new_edge[1] not in node_var__:
+        node_var__.append(new_edge[1])
+    i2 = node_var__.index(new_edge[1])
+    query += f"\t?c{i2} rdf:type <{new_edge[1]}> .\n"
+    prop = f"\t?c{i1} <{new_edge[2]['property']}> ?c{i2} .\n"
+    # Check if the same property has been added elsewhere in the query (see comment above)
+    if prop in props:
+        return -1
+    query += prop + " }"
     print(query)
+
+    # Query the LD graph
+    qres = ld_graph.query(query)
+    for row in qres:
+        print(row)
+        return row
 
 def build_longer_patterns(ld_graph, ontology, length_1_patterns, max_len: int):
     P = dict()
