@@ -2,8 +2,10 @@ import networkx as nx
 import json
 import rdflib
 from pattern import Pattern
-from copy import deepcopy
 import testConstants as test
+import queries
+import matplotlib.pyplot as plt
+
 
 
 def build_graph_with_st(st_path, ont_path, ld_path):
@@ -11,29 +13,58 @@ def build_graph_with_st(st_path, ont_path, ld_path):
 
     sts_json = read_sts_json(st_path)
     add_semantic_types(sts_json, source_graph)
-    ontology = read_ontology(ont_path)
-    LD_graph = read_ld(ld_path)
+    ontology = read_ontology(ont_path, 'turtle')
+    LD_graph = read_ld(ld_path, 'turtle')
 
     # It is time consuming so use the test
-    # extract_patterns_unitary(LD_graph)
-    pattern_length_1 = extract_patterns_unitary_test(LD_graph)
-    build_longer_patterns(LD_graph, ontology, pattern_length_1, 2)
+    extract_patterns_unitary(LD_graph)
+    #pattern_length_1 = extract_patterns_unitary_test(LD_graph)
+    #build_longer_patterns(LD_graph, ontology, pattern_length_1, 2)
 
     return
 
 
 def read_sts_json(st_path):
+    """Loads the JSON formatted content of the file containing the
+    semantic types of the source_graph
+    
+    Parameters
+    ----------
+    st_path : str
+        The path to the file containing the semantic types
+    
+    Returns
+    -------
+    list
+        The list of the objects inside the JSON file
+    """
+
     f = open(st_path)
     sts = json.load(f)
     return sts
 
 
 def add_semantic_types(sts, G):
+    """Adds the semantic types returned by read_sts_json() to the
+    directed graph passed as parameter
+    
+    Parameters
+    ----------
+    sts: list
+        Loaded JSON containing semantic type information
+    G: networkx.DiGraph
+        Source graph (directed)
+    
+    Returns
+    -------
+    networkx.DiGraph
+        The source graph with the newly added semantic types for each
+        instance
+    """
+
     sts = sts[0]
     attributes = sts['attributes']
     semantic_types = sts['semantic_types']
-
-    # TODO: if necessary, move here the code to create inverse edges
 
     for i in range(len(attributes)):
 
@@ -61,51 +92,100 @@ def add_semantic_types(sts, G):
     return G
 
 
-def read_ontology(ont_path):
+def read_ontology(ont_path, rdf_format):
+    """Reads the file passed as argument as a triple-store containing
+    the ontology information and builds a graph on its basis
+
+    Parameters
+    ----------
+    ont_path : str
+        The file containing the RDF triples building the ontology
+    rdf_format : str
+        Format description of the passed file (see rdflib.Graph.parse)
+
+    Returns
+    -------
+    rdflib.Graph
+        The graph containing the read ontology triples
+    """
+    
     f = open(ont_path, 'r')
 
     rdf_text = f.read()
     rdf_graph = rdflib.Graph()
-    ontology = rdf_graph.parse(data=rdf_text, format='turtle')
+    ontology = rdf_graph.parse(data=rdf_text, format=rdf_format)
 
     return ontology
 
-# def extract_ont_labels(ontology: rdflib.Graph):
-#     qres = ontology.query("""SELECT ?c ?l
-#                             WHERE { ?c rdfs:label ?l }""")
-#     d = dict()
-#     for row in qres:
-#         d[row.c] = row.l
-#     return d
+def read_ld(ld_path, rdf_format):
+    """Reads the file passed as argument as a triple-store containing
+    the linked data information and builds a graph on its basis
 
+    Parameters
+    ----------
+    ld_path : str
+        The file containing the linked data triples
+    rdf_format : str
+        Format description of the passed file (see rdflib.Graph.parse)
 
-def read_ld(ld_path):
+    Returns
+    -------
+    rdflib.Graph
+        The graph containing the read linked data triples
+    """
+
     f = open(ld_path, 'r')
 
     rdf_text = f.read()
     rdf_graph = rdflib.Graph()
-    ld_graph = rdf_graph.parse(data=rdf_text, format='turtle')
+    ld_graph = rdf_graph.parse(data=rdf_text, format=rdf_format)
 
     return ld_graph
 
 
 def extract_patterns_unitary(ld_graph: rdflib.Graph):
-    qres = ld_graph.query("""SELECT DISTINCT ?c1 ?p ?c2 (COUNT(*) as ?cnt)
-                            WHERE { ?x ?p ?y. ?x rdf:type ?c1. ?y rdf:type ?c2. }
-                            GROUP BY ?c1 ?p ?c2""")
+    """Extracts from the linked data graph the patterns of length 1 together
+    with the instance nodes that are involved in such pattern.
+    The information for each semantic relation is represented in a Pattern
+    object.
 
+    See the Pattern class docs for more details about the information handling.
+
+    Parameters
+    ----------
+    ld_graph: rdflib.Graph
+        The graph object containing the triples of the Linked data
+
+    Returns
+    -------
+    list
+        List of patterns (class Pattern) of length 1
+    """
+    
+    qres = ld_graph.query(queries.length_1_triples)
+
+    P1 = dict()
     i = 0
-    P1 = []
     for row in qres:
-        new_g = nx.DiGraph()
-        new_g.add_node(str(row.c1))
-        new_g.add_node(str(row.c2))
-        new_g.add_edge(str(row.c1), str(row.c2), property=str(row.p))
-        P1.append(Pattern(i, 1, new_g, int(str(row.cnt))))
-        i += 1
-    return P1
+        (x, c1, p, y, c2) = row
+        semantic_relation = (str(c1), str(p), str(c2))
+        if semantic_relation not in P1.keys():
+            # Create pattern graph and Pattern object
+            new_g = nx.DiGraph()
+            new_g.add_node(str(c1))
+            new_g.add_node(str(c2))
+            new_g.add_edge(str(c1), str(c2), property=str(p))
+            new_p = Pattern(i, 1, new_g, 0)
+            P1[semantic_relation] = new_p
+            i += 1
+        pattern = P1[semantic_relation]
+        # Add to the classes of the pattern the according instances
+        pattern.add_class_instance(str(c1), str(x))
+        pattern.add_class_instance(str(c2), str(y))
+        pattern.frequency += 1
+    return list(P1.values())
 
-# Only for test purposes
+# Only for test purposes (not updated yet)
 def extract_patterns_unitary_test(ld_graph):
     P1 = []
     i = 0
@@ -136,6 +216,7 @@ ASK WHERE { """
     props = list()
     
     # Build query for old pattern
+    print(pattern.p_graph.edges.data())
     for edge in pattern.p_graph.edges.data():
         if edge[0] not in node_var_index:
             node_var_index.append(edge[0])
@@ -180,7 +261,7 @@ def build_longer_patterns(ld_graph, ontology, length_1_patterns, max_len: int):
     ont_classes = extract_ontology_classes(ontology)
     while (i < max_len):
         for pattern in P[i]:
-            for ont_class in [c for c in list(pattern.p_graph.nodes) if ont_classes.count(c) == 1]:
+            for ont_class in [c for c in list(pattern.p_graph.nodes) if c in ont_classes]:
                 P1_c = [p for p in length_1_patterns if p.p_graph.has_node(ont_class)]
                 for p1_c in P1_c:
                     ask_for_link(ld_graph, pattern, p1_c, ont_class)
