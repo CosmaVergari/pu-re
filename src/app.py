@@ -4,7 +4,7 @@ import rdflib
 from pattern import Pattern
 import testConstants as test
 import queries
-import matplotlib.pyplot as plt
+import pickle
 
 
 
@@ -17,8 +17,8 @@ def build_graph_with_st(st_path, ont_path, ld_path):
     LD_graph = read_ld(ld_path, 'turtle')
 
     # It is time consuming so use the test
-    extract_patterns_unitary(LD_graph)
-    #pattern_length_1 = extract_patterns_unitary_test(LD_graph)
+    # extract_patterns_unitary(LD_graph)
+    pattern_length_1 = extract_patterns_unitary_test(LD_graph)
     #build_longer_patterns(LD_graph, ontology, pattern_length_1, 2)
 
     return
@@ -171,33 +171,20 @@ def extract_patterns_unitary(ld_graph: rdflib.Graph):
         semantic_relation = (str(c1), str(p), str(c2))
         if semantic_relation not in P1.keys():
             # Create pattern graph and Pattern object
-            new_g = nx.DiGraph()
-            new_g.add_node(str(c1))
-            new_g.add_node(str(c2))
-            new_g.add_edge(str(c1), str(c2), property=str(p))
-            new_p = Pattern(i, 1, new_g, 0)
+            new_p = Pattern(i, 1, 0)
             P1[semantic_relation] = new_p
             i += 1
         pattern = P1[semantic_relation]
-        # Add to the classes of the pattern the according instances
-        pattern.add_class_instance(str(c1), str(x))
-        pattern.add_class_instance(str(c2), str(y))
+        pattern.add_relation(c1, c2, p)
+        pattern.add_relation_instance(c1, x, c2, y, p)
         pattern.frequency += 1
+    #pickle.dump(P1, open('P1.pkl', 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
     return list(P1.values())
 
 # Only for test purposes (not updated yet)
 def extract_patterns_unitary_test(ld_graph):
-    P1 = []
-    i = 0
-    for row in test.P1:
-        new_g = nx.DiGraph()
-        new_g.add_node(str(row[0]))
-        new_g.add_node(str(row[2]))
-        new_g.add_edge(str(row[0]), str(row[2]), property=str(row[1]))
-        new_p = Pattern(i, 1, new_g, int(str(row[3])))
-        P1.append(new_p)
-        i += 1
-    return P1
+    P1 = pickle.load(open('./examples/P1.pkl', 'rb'))
+    return list(P1.values())
 
 def extract_ontology_classes(ontology: rdflib.Graph):
     qres = ontology.query("""PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
@@ -205,6 +192,22 @@ def extract_ontology_classes(ontology: rdflib.Graph):
     SELECT ?c
     WHERE { ?c rdf:type rdfs:Class }""")
     return [str(res[0]) for res in qres]
+
+def check_link(ld_graph: rdflib.Graph, old_pattern: Pattern, new_pattern: Pattern):
+    query = """PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+ASK WHERE { """
+
+    connection_class = [x for x in old_pattern.get_classes() if x in new_pattern.get_classes()][0]
+    
+
+
+
+
+
+
+
+
+
 
 def ask_for_link(ld_graph: rdflib.Graph, pattern: Pattern, candidate: Pattern, ont_class: str):
     query = """PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
@@ -264,7 +267,7 @@ def build_longer_patterns(ld_graph, ontology, length_1_patterns, max_len: int):
             for ont_class in [c for c in list(pattern.p_graph.nodes) if c in ont_classes]:
                 P1_c = [p for p in length_1_patterns if p.p_graph.has_node(ont_class)]
                 for p1_c in P1_c:
-                    ask_for_link(ld_graph, pattern, p1_c, ont_class)
+                    check_link(ld_graph, pattern, p1_c)
 
 
 

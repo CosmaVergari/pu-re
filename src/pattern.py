@@ -13,10 +13,10 @@ class Pattern:
 
                 c1 --p--> c2
     
-    The graph is exposed through the p_graph variable that is of type
+    The graph is exposed through the class_graph variable that is of type
     networkx.DiGraph and its handling has to be done externally.
 
-    Additionally, Pttern objects can store the instances of each type that
+    Additionally, Pattern objects can store the instances of each type that
     exist in the graph. This can be useful for the management of big graphs
 
     Attributes
@@ -25,28 +25,16 @@ class Pattern:
         Unique id of pattern
     p_len : int
         Length of pattern
-    p_graph : networkx.DiGraph
+    class_graph : networkx.DiGraph
         Directed graph containing the semantic types and the properties
     frequency : int
         Number of repetitions of the pattern in the LD graph
-    class_instances : dict
-        key : str
-            Semantic type in the graph
-        value : list
-            List of the instances of the semantic type in the LD graph
-            that are involved in the pattern
-
-    Methods
-    -------
-    add_class_instance(class_uri, instance_uri)
-        Adds an instance to the list of instances of a specified class
-    remove_class_instance(class_uri, instance_uri)
-        Removes an instance from the list of instances of a specified class
-    get_class_instances(class_uri)
-        Returns the list of instances of a specified class
+    instances_graph : networkx.DiGraph
+        Directed graph containing the instances for each class connected
+        with same properties shown in class_graph
     """
 
-    def __init__(self, p_id: int, p_len: int, p_graph: nx.DiGraph, frequency: int=0):
+    def __init__(self, p_id: int, p_len: int, frequency: int=0):
         """
         Parameters
         ----------
@@ -54,7 +42,7 @@ class Pattern:
             Unique id of pattern
         p_len : int
             Length of pattern
-        p_graph : networkx.DiGraph
+        class_graph : networkx.DiGraph
             Directed graph containing the semantic types and the properties
         frequency : int, optional
             Number of repetitions of the pattern in the LD graph (default is 0)
@@ -62,86 +50,37 @@ class Pattern:
 
         self.p_id = p_id
         self.p_len = p_len
-        self.p_graph = p_graph
+        self.class_graph = nx.DiGraph()
         self.frequency = frequency
-        self.class_instances = dict()
+        self.instances_graph = nx.DiGraph()
 
-    def add_class_instance(self, class_uri, instance_uri):
-        """Adds an instance to the list of instances of a specified class
+    
+    def add_relation(self, class_1, class_2, relation):
+        if class_1 not in list(self.class_graph.nodes):
+            self.class_graph.add_node(class_1, type="class")
+        if class_2 not in list(self.class_graph.nodes):
+            self.class_graph.add_node(class_2, type="class")
+        self.class_graph.add_edge(class_1, class_2, property=relation)
 
-        Parameters
-        ----------
-        class_uri : str
-            The uri of the class (semantic type)
-        instance_uri : str
-            The uri to be appended to the list of instances
+    def add_relation_instance(self, class_1, instance_1, class_2, instance_2, relation):
+        if (class_1 not in list(self.class_graph.nodes)) or (class_2 not in list(self.class_graph.nodes)):
+            raise ValueError("Both classes must be added to the semantic relation graph first")
 
-        Raises
-        ------
-        ValueError
-            If the class has not been added to the pattern graph before
-            calling this method
-        """
+        if instance_1 not in list(self.instances_graph.nodes):
+            self.instances_graph.add_node(instance_1, type="instance", instanceof=class_1)
+        if instance_2 not in list(self.instances_graph.nodes):
+            self.instances_graph.add_node(instance_2, type="instance", instanceof=class_2)
+        self.instances_graph.add_edge(instance_1, instance_2, property=relation)
 
-        if class_uri not in list(self.p_graph.nodes):
-            raise ValueError(f"The class \"{class_uri}\" must be added to the pattern graph first")
+    def get_classes(self):
+        return list(self.class_graph.nodes)
 
-        if class_uri not in self.class_instances.keys():
-            self.class_instances[class_uri] = list()
-            self.class_instances[class_uri].append(instance_uri)
-        else:
-            self.class_instances[class_uri].append(instance_uri)
-
-    def remove_class_instance(self, class_uri, instance_uri):
-        """Removes an instance from the list of instances of a specified class
-        
-        Parameters
-        ----------
-        class_uri : str
-            The uri of the class (semantic type)
-        instance_uri : str
-            The uri to be removed from the list of instances
-
-        Raises
-        ------
-        KeyError
-            If the class has not been previously added or populated
-        """
-
-        if class_uri not in self.class_instances.keys():
-            raise KeyError(f"There is no class named \"{class_uri}\"")
-        else:
-            self.class_instances[class_uri].remove(instance_uri)
-
-    def get_class_instances(self, class_uri):
-        """Returns the list of instances of a specified class
-        
-        Parameters
-        ----------
-        class_uri : str
-            The uri of the class (semantic type) of interest
-            
-        Raises
-        ------
-        KeyError
-            If the class has not been previously added or populated
-
-        Returns
-        -------
-        list
-            The list of the instances that are part of this pattern and
-            are related to the specified class
-        """
-
-        if class_uri not in self.class_instances.keys():
-            raise KeyError(f"There is no class named \"{class_uri}\"")
-        else:
-            return self.class_instances[class_uri]
-
+    #def get_instances(self, class_1):
+        #self.instances_graph.predecessors()
 
     def __str__(self):
         return "id: " + str(self.p_id) + \
             "\nlength: " + str(self.p_len) + \
             "\nfrequency: " + str(self.frequency) + \
-            "\nNodes of graph: " + str(list(self.p_graph.nodes)) + \
-            "\nEdges of graph : " + str(self.p_graph.edges.data()) + "\n"
+            "\nNodes of graph: " + str(list(self.class_graph.nodes)) + \
+            "\nEdges of graph : " + str(self.class_graph.edges.data()) + "\n"
